@@ -138,7 +138,6 @@
       <div class="auth-tab active" data-tab="login">Entrar</div>
       <div class="auth-tab" data-tab="signup">Criar conta</div>
     </div>
-    <input id="auth-email" type="email" placeholder="E-mail" autocomplete="email" style="display:none;">
     <input id="auth-username" placeholder="Nome de usuário" autocomplete="username">
     <input id="auth-password" type="password" placeholder="Senha" autocomplete="current-password">
     <button class="btn primary" id="auth-submit">Entrar</button>
@@ -225,6 +224,9 @@
 // ======================================================
 const SUPABASE_URL = 'https://azljjkbdugrcuoyzfmvw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6bGpqa2JkdWdyY3VveXpmbXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTY5NTAsImV4cCI6MjA5OTk5Mjk1MH0.odkr0TDNdqXT4D1yNmO1VqGmjEVjj8RE5Binfcj3SI0';
+// como não pedimos e-mail real, criamos um e-mail interno a partir do usuário
+// (o Supabase Auth exige um e-mail por baixo dos panos, mas o usuário nunca vê isso)
+const EMAIL_DOMAIN = '@eazymusic.local';
 
 let sb = null;
 let configErrorMsg = null;
@@ -286,8 +288,6 @@ if(!configErrorMsg){
       authMode = tab.dataset.tab;
       document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Entrar' : 'Criar conta';
       document.getElementById('auth-error').textContent = '';
-      // e-mail só é necessário (e pedido) na criação de conta
-      document.getElementById('auth-email').style.display = authMode === 'signup' ? 'block' : 'none';
       document.getElementById('auth-password').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
     };
   });
@@ -296,17 +296,16 @@ if(!configErrorMsg){
   submitBtn.onclick = async () => {
     const username = document.getElementById('auth-username').value.trim().toLowerCase();
     const password = document.getElementById('auth-password').value;
-    const email = document.getElementById('auth-email').value.trim().toLowerCase();
     const errEl = document.getElementById('auth-error');
     errEl.textContent = '';
 
     if(!username || !password){ errEl.textContent = 'Preencha usuário e senha.'; return; }
     if(!/^[a-z0-9_.]{3,20}$/.test(username)){ errEl.textContent = 'Use só letras, números, _ e . (3-20 caracteres).'; return; }
     if(password.length < 6){ errEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
-    if(authMode === 'signup' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ errEl.textContent = 'Digite um e-mail válido.'; return; }
 
     submitBtn.disabled = true;
     document.getElementById('auth-loading').style.display = 'block';
+    const email = username + EMAIL_DOMAIN; // e-mail interno, nunca mostrado ao usuário
 
     try{
       if(authMode === 'signup'){
@@ -315,35 +314,24 @@ if(!configErrorMsg){
         if(data.user){
           const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, username, email });
           if(profErr){
-            if(profErr.code === '23505'){
-              errEl.textContent = profErr.message.includes('username')
-                ? 'Esse nome de usuário já está em uso. Escolha outro.'
-                : 'Esse e-mail já está em uso.';
-            } else {
-              errEl.textContent = 'Sua conta foi criada, mas houve um erro ao salvar o perfil (' + profErr.message + '). Tente entrar novamente em alguns instantes.';
-            }
+            errEl.textContent = profErr.code === '23505'
+              ? 'Esse nome de usuário já está em uso. Escolha outro.'
+              : 'Houve um erro ao salvar o perfil (' + profErr.message + '). Tente novamente.';
             submitBtn.disabled = false;
             document.getElementById('auth-loading').style.display = 'none';
             return;
           }
         }
-        // se a confirmação de e-mail estiver ativada no Supabase, data.session pode vir nula
+        // como o e-mail é falso, ele nunca vai receber confirmação de verdade —
+        // é essencial que "Confirm email" esteja DESLIGADO nas configs de Auth do Supabase
         if(!data.session){
-          errEl.textContent = 'Conta criada. Se não conseguir entrar agora, desative "Confirm email" nas configurações de Auth do Supabase.';
+          errEl.textContent = 'Não foi possível entrar automaticamente. Verifique se "Confirm email" está desativado nas configurações de Auth do Supabase.';
           submitBtn.disabled = false;
           document.getElementById('auth-loading').style.display = 'none';
           return;
         }
       } else {
-        // descobre o e-mail real cadastrado a partir do username, sem expor a tabela inteira
-        const { data: emailFound, error: emailErr } = await sb.rpc('email_for_username', { uname: username });
-        if(emailErr || !emailFound){
-          errEl.textContent = 'Usuário ou senha incorretos.';
-          submitBtn.disabled = false;
-          document.getElementById('auth-loading').style.display = 'none';
-          return;
-        }
-        const { data, error } = await sb.auth.signInWithPassword({ email: emailFound, password });
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
         if(error) throw error;
       }
       await onLoggedIn();
