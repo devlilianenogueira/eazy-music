@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eazy Music</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --bg-0:#05050a; --bg-1:#0d0d18; --bg-2:#141422; --bg-card:#181829;
+    --blue:#3d5afe; --purple:#8b5cf6; --purple-2:#6d28d9;
+    --grad: linear-gradient(135deg,#3d5afe 0%, #8b5cf6 100%);
+    --text:#f4f4f8; --text-dim:#9d9db0; --text-faint:#6a6a7c; --border:#232336;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{background:var(--bg-0);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#26263a;border-radius:8px;}
+
+  /* ---------- TELA DE LOGIN ---------- */
+  #auth-screen{
+    position:fixed;inset:0;background:var(--bg-0);z-index:100;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #auth-screen.hidden{display:none;}
+  .auth-box{
+    width:340px;background:var(--bg-1);border:1px solid var(--border);
+    border-radius:14px;padding:32px;
+  }
+  .auth-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;margin-bottom:6px;justify-content:center;}
+  .auth-logo .mark{width:32px;height:32px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .auth-sub{text-align:center;color:var(--text-faint);font-size:12.5px;margin:0 0 24px;}
+  .auth-tabs{display:flex;gap:4px;background:var(--bg-2);border-radius:10px;padding:3px;margin-bottom:20px;}
+  .auth-tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text-dim);}
+  .auth-tab.active{background:var(--bg-card);color:var(--text);}
+  .auth-box input{
+    width:100%;padding:11px 14px;margin-bottom:12px;border-radius:8px;
+    border:1px solid var(--border);background:var(--bg-2);color:var(--text);
+    font-size:14px;outline:none;
+  }
+  .auth-box input:focus{border-color:var(--purple);}
+  .auth-box .btn{width:100%;justify-content:center;margin-top:4px;}
+  #auth-error{color:#ff8b8b;font-size:12.5px;margin:4px 0 0;min-height:16px;}
+  #auth-loading{color:var(--text-faint);font-size:12.5px;text-align:center;margin-top:10px;}
+
+  /* ---------- resto do app (mesmo estilo de antes) ---------- */
+  #app{display:none;grid-template-columns:230px 1fr;grid-template-rows:1fr 84px;height:100vh;}
+  #app.show{display:grid;}
+  #sidebar{grid-row:1/2;background:var(--bg-1);border-right:1px solid var(--border);padding:20px 14px;display:flex;flex-direction:column;gap:22px;overflow-y:auto;}
+  .logo{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;padding:0 6px;}
+  .logo .mark{width:30px;height:30px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .tag{font-size:10.5px;color:var(--text-faint);padding:0 6px;margin-top:-14px;}
+  .user-row{display:flex;align-items:center;justify-content:space-between;padding:8px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;}
+  .user-row button{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;}
+  .user-row button:hover{color:#ff8b8b;}
+  nav.main-nav{display:flex;flex-direction:column;gap:2px;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:8px;color:var(--text-dim);font-size:14px;font-weight:600;cursor:pointer;}
+  .nav-item:hover,.nav-item.active{color:var(--text);background:var(--bg-2);}
+  .side-section{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:16px;flex:1;min-height:0;}
+  .side-section-head{display:flex;align-items:center;justify-content:space-between;padding:0 8px;}
+  .side-section-head span{font-size:12px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;}
+  .icon-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+  .icon-btn:hover{background:var(--bg-2);color:var(--text);}
+  #playlist-list{overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .playlist-row{padding:8px;border-radius:6px;cursor:pointer;font-size:13.5px;color:var(--text-dim);display:flex;align-items:center;justify-content:space-between;}
+  .playlist-row:hover,.playlist-row.active{background:var(--bg-2);color:var(--text);}
+  .playlist-row .del{opacity:0;font-size:11px;color:var(--text-faint);}
+  .playlist-row:hover .del{opacity:1;}
+
+  #main{grid-row:1/2;overflow-y:auto;background:linear-gradient(180deg,#14142a 0%,var(--bg-0) 340px);padding:26px 34px 40px;}
+  header.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;}
+  .search-wrap{display:flex;align-items:center;gap:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:22px;padding:9px 16px;width:340px;}
+  .search-wrap input{background:none;border:none;outline:none;color:var(--text);font-size:14px;width:100%;}
+  .search-wrap input::placeholder{color:var(--text-faint);}
+  .btn{border-radius:20px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);padding:9px 18px;font-size:13.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .btn:hover{border-color:var(--purple);}
+  .btn.primary{background:var(--grad);border:none;color:#fff;}
+  h1.page-title{font-size:26px;margin:0 0 4px;}
+  p.page-sub{color:var(--text-dim);font-size:14px;margin:0 0 26px;}
+  .badge-row{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;}
+  .chip{font-size:11.5px;font-weight:700;color:#c9c4ff;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);padding:5px 12px;border-radius:20px;}
+  .section{margin-bottom:34px;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .section-head h2{font-size:18px;margin:0;}
+  table.track-table{width:100%;border-collapse:collapse;}
+  table.track-table th{text-align:left;font-size:11.5px;color:var(--text-faint);font-weight:600;text-transform:uppercase;padding:6px 12px;border-bottom:1px solid var(--border);}
+  table.track-table td{padding:9px 12px;font-size:14px;border-bottom:1px solid rgba(255,255,255,.03);}
+  table.track-table tr.track-row{cursor:pointer;}
+  table.track-table tr.track-row:hover{background:var(--bg-2);}
+  table.track-table tr.track-row.playing td{color:var(--purple);}
+  table.track-table tr.missing td{opacity:.45;}
+  .row-num{color:var(--text-faint);width:26px;}
+  .row-name{display:flex;align-items:center;gap:12px;}
+  .mini-art{width:36px;height:36px;border-radius:6px;background:var(--grad);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .row-actions{text-align:right;color:var(--text-faint);white-space:nowrap;}
+  .row-actions button{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:4px 6px;}
+  .row-actions button:hover{color:var(--text);}
+  .missing-tag{font-size:10.5px;color:#ffb347;border:1px solid rgba(255,179,71,.4);padding:2px 8px;border-radius:10px;margin-left:8px;}
+  .empty-state{border:1px dashed var(--border);border-radius:14px;padding:50px 20px;text-align:center;color:var(--text-dim);}
+  .empty-state h3{color:var(--text);font-size:17px;margin:0 0 8px;}
+  #player-bar{grid-column:1/3;grid-row:2/3;background:var(--bg-1);border-top:1px solid var(--border);display:grid;grid-template-columns:230px 1fr 230px;align-items:center;padding:0 16px;gap:14px;}
+  .np{display:flex;align-items:center;gap:12px;min-width:0;}
+  .np .mini-art{width:52px;height:52px;font-size:20px;border-radius:8px;}
+  .np-meta .t-title{font-size:13.5px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;}
+  .np-meta .t-sub{font-size:11.5px;margin:0;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .heart{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:16px;}
+  .heart.on{color:var(--purple);}
+  .controls{display:flex;flex-direction:column;align-items:center;gap:6px;max-width:640px;margin:0 auto;width:100%;}
+  .transport{display:flex;align-items:center;gap:18px;}
+  .transport button{background:none;border:none;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .transport button:hover{color:var(--text);}
+  .transport .toggled{color:var(--purple);}
+  .play-btn{width:34px;height:34px;border-radius:50%;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;}
+  .seek-row{display:flex;align-items:center;gap:8px;width:100%;}
+  .seek-row span{font-size:11px;color:var(--text-faint);width:36px;text-align:center;}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:#2a2a3d;flex:1;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;}
+  .right-controls{display:flex;align-items:center;justify-content:flex-end;gap:12px;}
+  .right-controls button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;}
+  #volume{width:90px;}
+  #file-input,#relink-input{display:none;}
+  .queue-panel{position:fixed;right:16px;bottom:100px;width:320px;max-height:60vh;background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:14px;overflow-y:auto;display:none;box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:20;}
+  .queue-panel.show{display:block;}
+  .queue-item{display:flex;align-items:center;gap:10px;padding:7px 4px;border-radius:6px;cursor:pointer;}
+  .queue-item:hover{background:var(--bg-2);}
+  .queue-item.current{color:var(--purple);}
+</style>
+</head>
+<body>
+
+<!-- ================= TELA DE LOGIN ================= -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo"><div class="mark">🎵</div>Eazy Music</div>
+    <p class="auth-sub">sem anúncios · sem limites · sua conta</p>
+    <div class="auth-tabs">
+      <div class="auth-tab active" data-tab="login">Entrar</div>
+      <div class="auth-tab" data-tab="signup">Criar conta</div>
+    </div>
+    <input id="auth-username" placeholder="Nome de usuário" autocomplete="username">
+    <input id="auth-password" type="password" placeholder="Senha" autocomplete="current-password">
+    <button class="btn primary" id="auth-submit">Entrar</button>
+    <p id="auth-error"></p>
+    <p id="auth-loading" style="display:none;">Conectando...</p>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+  <aside id="sidebar">
+    <div>
+      <div class="logo"><div class="mark">🎵</div>Eazy Music</div>
+      <div class="tag">sem anúncios · sem limites · sua biblioteca</div>
+    </div>
+    <div class="user-row">
+      <span id="current-username">usuário</span>
+      <button id="logout-btn">Sair</button>
+    </div>
+    <nav class="main-nav">
+      <div class="nav-item active" data-view="home">Início</div>
+      <div class="nav-item" data-view="search">Buscar</div>
+      <div class="nav-item" data-view="library">Sua biblioteca</div>
+    </nav>
+    <div class="side-section">
+      <div class="side-section-head"><span>Playlists</span><button class="icon-btn" id="new-playlist-btn">+</button></div>
+      <div id="playlist-list"></div>
+    </div>
+    <button class="btn primary" id="upload-btn" style="justify-content:center;">＋ Adicionar músicas</button>
+    <input type="file" id="file-input" accept="audio/*" multiple>
+    <input type="file" id="relink-input" accept="audio/*">
+  </aside>
+
+  <main id="main">
+    <header class="top-bar">
+      <div class="search-wrap">
+        <input id="search-input" placeholder="O que você quer ouvir?">
+      </div>
+      <button class="btn" id="shuffle-all-btn">🔀 Tocar tudo</button>
+    </header>
+    <div id="view-content"></div>
+  </main>
+
+  <div id="player-bar">
+    <div class="np" id="np">
+      <div class="mini-art" id="np-art">🎵</div>
+      <div class="np-meta">
+        <p class="t-title" id="np-title">Nada tocando</p>
+        <p class="t-sub" id="np-artist">Adicione músicas para começar</p>
+      </div>
+      <button class="heart" id="np-heart">♡</button>
+    </div>
+    <div class="controls">
+      <div class="transport">
+        <button id="shuffle-btn" title="Aleatório">🔀</button>
+        <button id="prev-btn" title="Anterior">⏮</button>
+        <button class="play-btn" id="play-btn"><svg id="play-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <button id="next-btn" title="Próxima">⏭</button>
+        <button id="repeat-btn" title="Repetir">🔁</button>
+      </div>
+      <div class="seek-row">
+        <span id="time-cur">0:00</span>
+        <input type="range" id="seek" min="0" max="100" value="0">
+        <span id="time-dur">0:00</span>
+      </div>
+    </div>
+    <div class="right-controls">
+      <button id="queue-btn">☰</button>
+      <input type="range" id="volume" min="0" max="100" value="80">
+    </div>
+  </div>
+
+  <div class="queue-panel" id="queue-panel">
+    <h3 style="margin:0 0 10px;font-size:13px;color:var(--text-faint);text-transform:uppercase;">Próximas</h3>
+    <div id="queue-list"></div>
+  </div>
+</div>
+
+<audio id="audio"></audio>
+
+<script>
+// ======================================================
+// CONFIGURAÇÃO — cole aqui os dados do SEU projeto Supabase
+// ======================================================
+const SUPABASE_URL = 'https://azljjkbdugrcuoyzfmvw.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6bGpqa2JkdWdyY3VveXpmbXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTY5NTAsImV4cCI6MjA5OTk5Mjk1MH0.odkr0TDNdqXT4D1yNmO1VqGmjEVjj8RE5Binfcj3SI0
+
+
+
+';
+const EMAIL_DOMAIN = '@eazymusic.local'; // usado internamente pra transformar usuário em e-mail
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ---------- Estado ----------
+let currentUser = null;
+let library = [];        // {id, title, artist, filename, blobUrl|null}
+let playlists = [];      // {id, name, trackIds:[]}
+let queue = [];
+let queuePos = -1;
+let shuffleOn = false;
+let repeatMode = 0;
+let likedIds = new Set();
+let currentView = 'home';
+let currentPlaylistId = null;
+let relinkTargetId = null;
+
+const audio = document.getElementById('audio');
+const viewContent = document.getElementById('view-content');
+
+function guessMeta(filename){
+  let name = filename.replace(/\.[^/.]+$/, "");
+  let parts = name.split(/\s*-\s*/);
+  if(parts.length >= 2) return {artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim()};
+  return {artist: 'Artista desconhecido', title: name};
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function formatTime(s){ if(isNaN(s)) return '0:00'; const m=Math.floor(s/60), sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
+
+// ================= AUTENTICAÇÃO =================
+let authMode = 'login';
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    authMode = tab.dataset.tab;
+    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Entrar' : 'Criar conta';
+    document.getElementById('auth-error').textContent = '';
+  };
+});
+
+document.getElementById('auth-submit').onclick = async () => {
+  const username = document.getElementById('auth-username').value.trim().toLowerCase();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if(!username || !password){ errEl.textContent = 'Preencha usuário e senha.'; return; }
+  if(!/^[a-z0-9_.]{3,20}$/.test(username)){ errEl.textContent = 'Use só letras, números, _ e . (3-20 caracteres).'; return; }
+
+  document.getElementById('auth-loading').style.display = 'block';
+  const email = username + EMAIL_DOMAIN;
+
+  try{
+    if(authMode === 'signup'){
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if(error) throw error;
+      if(data.user){
+        await sb.from('profiles').insert({ id: data.user.id, username });
+      }
+      // se a confirmação de e-mail estiver ativada no Supabase, data.session pode vir nula
+      if(!data.session){
+        errEl.textContent = 'Conta criada. Desative a confirmação de e-mail nas configurações de Auth do Supabase, ou confirme e faça login.';
+        document.getElementById('auth-loading').style.display = 'none';
+        return;
+      }
+    } else {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+    }
+    await onLoggedIn();
+  }catch(e){
+    errEl.textContent = e.message.includes('Invalid login') ? 'Usuário ou senha incorretos.' : e.message;
+  }
+  document.getElementById('auth-loading').style.display = 'none';
+};
+
+document.getElementById('logout-btn').onclick = async () => {
+  await sb.auth.signOut();
+  location.reload();
+};
+
+async function onLoggedIn(){
+  const { data: { user } } = await sb.auth.getUser();
+  currentUser = user;
+  const { data: profile } = await sb.from('profiles').select('username').eq('id', user.id).single();
+  document.getElementById('current-username').textContent = profile ? profile.username : user.email.split('@')[0];
+
+  await loadCloudData();
+
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app').classList.add('show');
+  render();
+}
+
+async function loadCloudData(){
+  const [{ data: tracks }, { data: pls }, { data: pts }, { data: likes }] = await Promise.all([
+    sb.from('tracks').select('*').order('created_at'),
+    sb.from('playlists').select('*').order('created_at'),
+    sb.from('playlist_tracks').select('*').order('position'),
+    sb.from('likes').select('track_id')
+  ]);
+
+  library = (tracks || []).map(t => ({ id: t.id, title: t.title, artist: t.artist, filename: t.filename, blobUrl: null }));
+  playlists = (pls || []).map(p => ({ id: p.id, name: p.name, trackIds: (pts || []).filter(pt => pt.playlist_id === p.id).map(pt => pt.track_id) }));
+  likedIds = new Set((likes || []).map(l => l.track_id));
+}
+
+// checa se já tem sessão ativa ao abrir a página
+sb.auth.getSession().then(({ data }) => { if(data.session) onLoggedIn(); });
+
+// ================= UPLOAD / MATCH DE ARQUIVOS =================
+document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
+document.getElementById('file-input').onchange = (e) => addFiles(e.target.files);
+document.getElementById('main').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('main').addEventListener('drop', e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+
+async function addFiles(fileList){
+  const files = Array.from(fileList).filter(f => f.type.startsWith('audio/'));
+  for(const file of files){
+    let existing = library.find(t => t.filename === file.name);
+    if(existing){
+      existing.blobUrl = URL.createObjectURL(file);
+    } else {
+      const meta = guessMeta(file.name);
+      const { data, error } = await sb.from('tracks').insert({
+        user_id: currentUser.id, title: meta.title, artist: meta.artist, filename: file.name
+      }).select().single();
+      if(error){ console.error(error); continue; }
+      library.push({ id: data.id, title: data.title, artist: data.artist, filename: data.filename, blobUrl: URL.createObjectURL(file) });
+    }
+  }
+  render();
+}
+
+// relink de arquivo ausente
+document.getElementById('relink-input').onchange = (e) => {
+  const file = e.target.files[0];
+  if(file && relinkTargetId){
+    const t = library.find(x => x.id === relinkTargetId);
+    if(t) t.blobUrl = URL.createObjectURL(file);
+    relinkTargetId = null;
+    render();
+  }
+};
+function relinkTrack(id, ev){
+  ev.stopPropagation();
+  relinkTargetId = id;
+  document.getElementById('relink-input').click();
+}
+
+// ================= PLAYLISTS =================
+document.getElementById('new-playlist-btn').onclick = async () => {
+  const name = prompt('Nome da playlist:');
+  if(name && name.trim()){
+    const { data, error } = await sb.from('playlists').insert({ user_id: currentUser.id, name: name.trim() }).select().single();
+    if(!error){ playlists.push({ id: data.id, name: data.name, trackIds: [] }); render(); }
+  }
+};
+async function deletePlaylist(id, ev){
+  ev.stopPropagation();
+  await sb.from('playlists').delete().eq('id', id);
+  playlists = playlists.filter(p => p.id !== id);
+  if(currentPlaylistId === id){ currentView='home'; currentPlaylistId=null; }
+  render();
+}
+async function addToPlaylist(trackId){
+  if(playlists.length === 0){ alert('Crie uma playlist primeiro.'); return; }
+  const names = playlists.map((p,i) => `${i+1}. ${p.name}`).join('\n');
+  const choice = prompt(`Adicionar a qual playlist?\n${names}\n\nDigite o número:`);
+  const idx = parseInt(choice) - 1;
+  const p = playlists[idx];
+  if(p && !p.trackIds.includes(trackId)){
+    const { error } = await sb.from('playlist_tracks').insert({ playlist_id: p.id, track_id: trackId, position: p.trackIds.length });
+    if(!error){ p.trackIds.push(trackId); render(); }
+  }
+}
+async function removeFromPlaylist(playlistId, trackId){
+  await sb.from('playlist_tracks').delete().eq('playlist_id', playlistId).eq('track_id', trackId);
+  const p = playlists.find(x => x.id === playlistId);
+  if(p) p.trackIds = p.trackIds.filter(id => id !== trackId);
+  render();
+}
+async function toggleLike(trackId){
+  if(likedIds.has(trackId)){
+    likedIds.delete(trackId);
+    await sb.from('likes').delete().eq('user_id', currentUser.id).eq('track_id', trackId);
+  } else {
+    likedIds.add(trackId);
+    await sb.from('likes').insert({ user_id: currentUser.id, track_id: trackId });
+  }
+  render();
+}
+
+// ================= NAVEGAÇÃO / RENDER =================
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.onclick = () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    currentView = item.dataset.view; currentPlaylistId = null;
+    render();
+  };
+});
+function openPlaylist(id){
+  currentView='playlist'; currentPlaylistId=id;
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  render();
+}
+
+function render(){ renderSidebarPlaylists(); renderView(); }
+
+function renderSidebarPlaylists(){
+  const el = document.getElementById('playlist-list');
+  el.innerHTML = playlists.length ? playlists.map(p => `
+    <div class="playlist-row ${currentPlaylistId===p.id?'active':''}" onclick="openPlaylist('${p.id}')">
+      <span>${escapeHtml(p.name)}</span>
+      <span class="del" onclick="deletePlaylist('${p.id}', event)">✕</span>
+    </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-faint);padding:6px 8px;">Nenhuma playlist ainda</div>`;
+}
+
+function trackTableHtml(trackIds, opts={}){
+  if(trackIds.length === 0) return emptyStateHtml();
+  const rows = trackIds.map((id, i) => {
+    const t = library.find(x => x.id === id);
+    if(!t) return '';
+    const isPlaying = queue[queuePos] === id;
+    const missing = !t.blobUrl;
+    return `
+      <tr class="track-row ${isPlaying?'playing':''} ${missing?'missing':''}" onclick="${missing ? '' : `playFromList(${JSON.stringify(trackIds)}, '${id}')`}">
+        <td class="row-num">${isPlaying ? '▶' : i+1}</td>
+        <td>
+          <div class="row-name">
+            <div class="mini-art">🎵</div>
+            <div>
+              <div style="font-weight:600;font-size:13.5px;">${escapeHtml(t.title)} ${missing?'<span class="missing-tag">arquivo ausente</span>':''}</div>
+              <div style="font-size:12px;color:var(--text-dim);">${escapeHtml(t.artist)}</div>
+            </div>
+          </div>
+        </td>
+        <td class="row-actions">
+          ${missing ? `<button onclick="relinkTrack('${t.id}', event)" title="Localizar arquivo">🔗 Localizar</button>` : ''}
+          <button onclick="event.stopPropagation(); addToPlaylist('${t.id}')" title="Adicionar à playlist">＋</button>
+          <button onclick="event.stopPropagation(); toggleLike('${t.id}')" title="Curtir">${likedIds.has(t.id)?'♥':'♡'}</button>
+          ${opts.playlistId ? `<button onclick="event.stopPropagation(); removeFromPlaylist('${opts.playlistId}','${t.id}')" title="Remover">✕</button>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+  return `<table class="track-table"><thead><tr><th>#</th><th>Título</th><th style="text-align:right;">Ações</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function emptyStateHtml(){
+  return `<div class="empty-state">
+    <h3>Sua biblioteca está vazia</h3>
+    <p>Arraste arquivos de música para cá, ou clique em "Adicionar músicas".</p>
+    <button class="btn primary" onclick="document.getElementById('file-input').click()">＋ Adicionar músicas</button>
+  </div>`;
+}
+
+function renderView(){
+  const search = document.getElementById('search-input').value.trim().toLowerCase();
+
+  if(currentView === 'search' && search){
+    const filtered = library.filter(t => t.title.toLowerCase().includes(search) || t.artist.toLowerCase().includes(search));
+    viewContent.innerHTML = `<h1 class="page-title">Resultados para "${escapeHtml(search)}"</h1><p class="page-sub">${filtered.length} música(s) encontrada(s)</p>${trackTableHtml(filtered.map(t=>t.id))}`;
+    return;
+  }
+  if(currentView === 'playlist' && currentPlaylistId){
+    const p = playlists.find(x => x.id === currentPlaylistId);
+    if(!p){ currentView='home'; return renderView(); }
+    viewContent.innerHTML = `<h1 class="page-title">${escapeHtml(p.name)}</h1><p class="page-sub">${p.trackIds.length} música(s)</p>${trackTableHtml(p.trackIds, {playlistId:p.id})}`;
+    return;
+  }
+  if(currentView === 'library'){
+    viewContent.innerHTML = `<h1 class="page-title">Sua biblioteca</h1><p class="page-sub">${library.length} música(s) salvas na sua conta</p>${trackTableHtml(library.map(t=>t.id))}`;
+    return;
+  }
+  if(currentView === 'search' && !search){
+    viewContent.innerHTML = `<h1 class="page-title">Buscar</h1><p class="page-sub">Digite acima para encontrar músicas na sua biblioteca</p>`;
+    return;
+  }
+  const notLoaded = library.filter(t => !t.blobUrl).length;
+  viewContent.innerHTML = `
+    <div class="badge-row">
+      <span class="chip">✓ Sem anúncios</span><span class="chip">✓ Sem limite de pulos</span>
+      <span class="chip">✓ 100% gratuito</span><span class="chip">✓ Login salvo na nuvem</span>
+    </div>
+    <h1 class="page-title">Olá de novo</h1>
+    <p class="page-sub">${notLoaded > 0 ? `${notLoaded} música(s) da sua biblioteca precisam ser readicionadas nesta sessão.` : 'Sua biblioteca está pronta pra tocar.'}</p>
+    <div class="section"><div class="section-head"><h2>Sua biblioteca</h2></div>${trackTableHtml(library.map(t=>t.id)).replace('<table','<div style="max-height:420px;overflow:auto"><table').concat('</div>')}</div>
+  `;
+}
+
+document.getElementById('search-input').addEventListener('input', () => {
+  currentView='search';
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelector('[data-view="search"]').classList.add('active');
+  renderView();
+});
+
+// ================= PLAYER =================
+function playFromList(ids, startId){
+  const playable = ids.filter(id => { const t = library.find(x=>x.id===id); return t && t.blobUrl; });
+  if(playable.length === 0){ alert('Essas músicas ainda não foram carregadas nesta sessão. Clique em "Localizar" para reconectar o arquivo.'); return; }
+  queue = playable;
+  queuePos = queue.indexOf(startId);
+  if(queuePos === -1) queuePos = 0;
+  playCurrent();
+}
+function playCurrent(){
+  const id = queue[queuePos];
+  const t = library.find(x => x.id === id);
+  if(!t || !t.blobUrl) return;
+  audio.src = t.blobUrl;
+  audio.play();
+  updateNowPlaying(t);
+  renderQueuePanel();
+  renderView();
+}
+function updateNowPlaying(t){
+  document.getElementById('np-title').textContent = t.title;
+  document.getElementById('np-artist').textContent = t.artist;
+  document.getElementById('np-heart').textContent = likedIds.has(t.id) ? '♥' : '♡';
+  document.getElementById('np-heart').classList.toggle('on', likedIds.has(t.id));
+  document.getElementById('np-heart').onclick = () => { toggleLike(t.id); updateNowPlaying(t); };
+}
+document.getElementById('play-btn').onclick = () => {
+  if(!audio.src){ const playable = library.find(t=>t.blobUrl); if(playable) playFromList(library.map(t=>t.id), playable.id); return; }
+  if(audio.paused) audio.play(); else audio.pause();
+};
+audio.addEventListener('play', () => setPlayIcon(true));
+audio.addEventListener('pause', () => setPlayIcon(false));
+function setPlayIcon(playing){
+  document.getElementById('play-icon').innerHTML = playing ? '<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>' : '<path d="M8 5v14l11-7z"/>';
+}
+document.getElementById('next-btn').onclick = () => nextTrack();
+document.getElementById('prev-btn').onclick = () => {
+  if(audio.currentTime > 3){ audio.currentTime = 0; return; }
+  queuePos = queuePos <= 0 ? queue.length-1 : queuePos-1;
+  playCurrent();
+};
+function nextTrack(){
+  if(queue.length === 0) return;
+  if(repeatMode === 2){ playCurrent(); return; }
+  if(shuffleOn){ queuePos = Math.floor(Math.random()*queue.length); }
+  else if(queuePos >= queue.length-1){ if(repeatMode===1) queuePos=0; else return; }
+  else queuePos++;
+  playCurrent();
+}
+audio.addEventListener('ended', nextTrack);
+document.getElementById('shuffle-btn').onclick = (e) => { shuffleOn = !shuffleOn; e.currentTarget.classList.toggle('toggled', shuffleOn); };
+document.getElementById('repeat-btn').onclick = (e) => {
+  repeatMode = (repeatMode+1)%3;
+  e.currentTarget.classList.toggle('toggled', repeatMode!==0);
+};
+document.getElementById('shuffle-all-btn').onclick = () => {
+  const playable = library.filter(t=>t.blobUrl);
+  if(playable.length === 0){ alert('Adicione músicas primeiro.'); return; }
+  shuffleOn = true; document.getElementById('shuffle-btn').classList.add('toggled');
+  playFromList(library.map(t=>t.id), playable[Math.floor(Math.random()*playable.length)].id);
+};
+audio.addEventListener('timeupdate', () => {
+  if(!isNaN(audio.duration)){
+    document.getElementById('seek').value = (audio.currentTime/audio.duration)*100;
+    document.getElementById('time-cur').textContent = formatTime(audio.currentTime);
+    document.getElementById('time-dur').textContent = formatTime(audio.duration);
+  }
+});
+document.getElementById('seek').addEventListener('input', e => { if(!isNaN(audio.duration)) audio.currentTime = (e.target.value/100)*audio.duration; });
+document.getElementById('volume').addEventListener('input', e => { audio.volume = e.target.value/100; });
+audio.volume = 0.8;
+document.getElementById('queue-btn').onclick = () => document.getElementById('queue-panel').classList.toggle('show');
+function renderQueuePanel(){
+  const el = document.getElementById('queue-list');
+  el.innerHTML = queue.length ? queue.map((id,i) => {
+    const t = library.find(x=>x.id===id); if(!t) return '';
+    return `<div class="queue-item ${i===queuePos?'current':''}" onclick="queuePos=${i}; playCurrent();">
+      <div class="mini-art" style="width:30px;height:30px;font-size:12px;">🎵</div>
+      <div><div style="font-size:13px;font-weight:600;">${escapeHtml(t.title)}</div><div style="font-size:11px;color:var(--text-dim);">${escapeHtml(t.artist)}</div></div>
+    </div>`;
+  }).join('') : '<p style="font-size:13px;color:var(--text-faint);">Fila vazia</p>';
+}
+</script>
+</body>
+</html>
