@@ -18,42 +18,22 @@
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-thumb{background:#26263a;border-radius:8px;}
 
-  /* ---------- TELA DE LOGIN ---------- */
-  #auth-screen{
+  #boot-screen{
     position:fixed;inset:0;background:var(--bg-0);z-index:100;
-    display:flex;align-items:center;justify-content:center;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
   }
-  #auth-screen.hidden{display:none;}
-  .auth-box{
-    width:340px;background:var(--bg-1);border:1px solid var(--border);
-    border-radius:14px;padding:32px;
-  }
-  .auth-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;margin-bottom:6px;justify-content:center;}
-  .auth-logo .mark{width:32px;height:32px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:17px;}
-  .auth-sub{text-align:center;color:var(--text-faint);font-size:12.5px;margin:0 0 24px;}
-  .auth-tabs{display:flex;gap:4px;background:var(--bg-2);border-radius:10px;padding:3px;margin-bottom:20px;}
-  .auth-tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--text-dim);}
-  .auth-tab.active{background:var(--bg-card);color:var(--text);}
-  .auth-box input{
-    width:100%;padding:11px 14px;margin-bottom:12px;border-radius:8px;
-    border:1px solid var(--border);background:var(--bg-2);color:var(--text);
-    font-size:14px;outline:none;
-  }
-  .auth-box input:focus{border-color:var(--purple);}
-  .auth-box .btn{width:100%;justify-content:center;margin-top:4px;}
-  #auth-error{color:#ff8b8b;font-size:12.5px;margin:4px 0 0;min-height:16px;}
-  #auth-loading{color:var(--text-faint);font-size:12.5px;text-align:center;margin-top:10px;}
+  #boot-screen.hidden{display:none;}
+  .boot-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;}
+  .boot-logo .mark{width:32px;height:32px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:17px;}
+  #boot-msg{color:var(--text-faint);font-size:13px;text-align:center;max-width:360px;line-height:1.5;padding:0 20px;}
+  #boot-msg.error{color:#ff8b8b;}
 
-  /* ---------- resto do app (mesmo estilo de antes) ---------- */
   #app{display:none;grid-template-columns:230px 1fr;grid-template-rows:1fr 84px;height:100vh;}
   #app.show{display:grid;}
   #sidebar{grid-row:1/2;background:var(--bg-1);border-right:1px solid var(--border);padding:20px 14px;display:flex;flex-direction:column;gap:22px;overflow-y:auto;}
   .logo{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;padding:0 6px;}
   .logo .mark{width:30px;height:30px;border-radius:8px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;}
   .tag{font-size:10.5px;color:var(--text-faint);padding:0 6px;margin-top:-14px;}
-  .user-row{display:flex;align-items:center;justify-content:space-between;padding:8px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;}
-  .user-row button{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;}
-  .user-row button:hover{color:#ff8b8b;}
   nav.main-nav{display:flex;flex-direction:column;gap:2px;}
   .nav-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:8px;color:var(--text-dim);font-size:14px;font-weight:600;cursor:pointer;}
   .nav-item:hover,.nav-item.active{color:var(--text);background:var(--bg-2);}
@@ -129,21 +109,10 @@
 </head>
 <body>
 
-<!-- ================= TELA DE LOGIN ================= -->
-<div id="auth-screen">
-  <div class="auth-box">
-    <div class="auth-logo"><div class="mark">🎵</div>Eazy Music</div>
-    <p class="auth-sub">sem anúncios · sem limites · sua conta</p>
-    <div class="auth-tabs">
-      <div class="auth-tab active" data-tab="login">Entrar</div>
-      <div class="auth-tab" data-tab="signup">Criar conta</div>
-    </div>
-    <input id="auth-username" placeholder="Nome de usuário" autocomplete="username">
-    <input id="auth-password" type="password" placeholder="Senha" autocomplete="current-password">
-    <button class="btn primary" id="auth-submit">Entrar</button>
-    <p id="auth-error"></p>
-    <p id="auth-loading" style="display:none;">Conectando...</p>
-  </div>
+<!-- ================= TELA DE CARREGAMENTO (sem login) ================= -->
+<div id="boot-screen">
+  <div class="boot-logo"><div class="mark">🎵</div>Eazy Music</div>
+  <p id="boot-msg">Carregando sua biblioteca...</p>
 </div>
 
 <!-- ================= APP ================= -->
@@ -152,10 +121,6 @@
     <div>
       <div class="logo"><div class="mark">🎵</div>Eazy Music</div>
       <div class="tag">sem anúncios · sem limites · sua biblioteca</div>
-    </div>
-    <div class="user-row">
-      <span id="current-username">usuário</span>
-      <button id="logout-btn">Sair</button>
     </div>
     <nav class="main-nav">
       <div class="nav-item active" data-view="home">Início</div>
@@ -224,9 +189,6 @@
 // ======================================================
 const SUPABASE_URL = 'https://azljjkbdugrcuoyzfmvw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6bGpqa2JkdWdyY3VveXpmbXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTY5NTAsImV4cCI6MjA5OTk5Mjk1MH0.odkr0TDNdqXT4D1yNmO1VqGmjEVjj8RE5Binfcj3SI0';
-// como não pedimos e-mail real, criamos um e-mail interno a partir do usuário
-// (o Supabase Auth exige um e-mail por baixo dos panos, mas o usuário nunca vê isso)
-const EMAIL_DOMAIN = '@eazymusic.local';
 
 let sb = null;
 let configErrorMsg = null;
@@ -267,96 +229,37 @@ function guessMeta(filename){
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function formatTime(s){ if(isNaN(s)) return '0:00'; const m=Math.floor(s/60), sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
 
-// ================= AUTENTICAÇÃO =================
-if(configErrorMsg){
-  document.querySelector('.auth-box').innerHTML = `
-    <div class="auth-logo"><div class="mark">🎵</div>Eazy Music</div>
-    <p class="auth-sub">configuração pendente</p>
-    <div style="background:rgba(255,139,139,.1); border:1px solid rgba(255,139,139,.35); border-radius:8px; padding:14px; color:#ff8b8b; font-size:13px; line-height:1.5;">
-      ${escapeHtml(configErrorMsg)}
-    </div>
-  `;
+// ================= ENTRADA AUTOMÁTICA (sem tela de login) =================
+// Em vez de pedir usuário/senha, criamos (ou reaproveitamos) uma sessão anônima
+// do Supabase. Assim seus dados continuam salvos na nuvem, mas você cai direto
+// na biblioteca. Isso exige que "Allow anonymous sign-ins" esteja ativado em
+// Authentication > Settings no seu projeto Supabase.
+function setBootMessage(msg, isError){
+  const el = document.getElementById('boot-msg');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
 }
 
-let authMode = 'login';
-
-if(!configErrorMsg){
-  document.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.onclick = () => {
-      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      authMode = tab.dataset.tab;
-      document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Entrar' : 'Criar conta';
-      document.getElementById('auth-error').textContent = '';
-      document.getElementById('auth-password').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
-    };
-  });
-
-  const submitBtn = document.getElementById('auth-submit');
-  submitBtn.onclick = async () => {
-    const username = document.getElementById('auth-username').value.trim().toLowerCase();
-    const password = document.getElementById('auth-password').value;
-    const errEl = document.getElementById('auth-error');
-    errEl.textContent = '';
-
-    if(!username || !password){ errEl.textContent = 'Preencha usuário e senha.'; return; }
-    if(!/^[a-z0-9_.]{3,20}$/.test(username)){ errEl.textContent = 'Use só letras, números, _ e . (3-20 caracteres).'; return; }
-    if(password.length < 6){ errEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
-
-    submitBtn.disabled = true;
-    document.getElementById('auth-loading').style.display = 'block';
-    const email = username + EMAIL_DOMAIN; // e-mail interno, nunca mostrado ao usuário
-
-    try{
-      if(authMode === 'signup'){
-        const { data, error } = await sb.auth.signUp({ email, password });
-        if(error) throw error;
-        if(data.user){
-          const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, username, email });
-          if(profErr){
-            errEl.textContent = profErr.code === '23505'
-              ? 'Esse nome de usuário já está em uso. Escolha outro.'
-              : 'Houve um erro ao salvar o perfil (' + profErr.message + '). Tente novamente.';
-            submitBtn.disabled = false;
-            document.getElementById('auth-loading').style.display = 'none';
-            return;
-          }
-        }
-        // como o e-mail é falso, ele nunca vai receber confirmação de verdade —
-        // é essencial que "Confirm email" esteja DESLIGADO nas configs de Auth do Supabase
-        if(!data.session){
-          errEl.textContent = 'Não foi possível entrar automaticamente. Verifique se "Confirm email" está desativado nas configurações de Auth do Supabase.';
-          submitBtn.disabled = false;
-          document.getElementById('auth-loading').style.display = 'none';
-          return;
-        }
-      } else {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if(error) throw error;
-      }
-      await onLoggedIn();
-    }catch(e){
-      errEl.textContent = (e.message || '').includes('Invalid login') ? 'Usuário ou senha incorretos.' : (e.message || 'Ocorreu um erro. Tente novamente.');
+async function boot(){
+  if(configErrorMsg){ setBootMessage(configErrorMsg, true); return; }
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session){
+      const { error } = await sb.auth.signInAnonymously();
+      if(error) throw error;
     }
-    submitBtn.disabled = false;
-    document.getElementById('auth-loading').style.display = 'none';
-  };
-
-  document.getElementById('logout-btn').onclick = async () => {
-    await sb.auth.signOut();
-    location.reload();
-  };
+    await onLoggedIn();
+  }catch(e){
+    setBootMessage('Não foi possível iniciar automaticamente. Verifique se "Allow anonymous sign-ins" está ativado nas configurações de Auth do Supabase. Detalhe: ' + (e.message || e), true);
+  }
 }
 
 async function onLoggedIn(){
   const { data: { user } } = await sb.auth.getUser();
   currentUser = user;
-  const { data: profile } = await sb.from('profiles').select('username').eq('id', user.id).single();
-  document.getElementById('current-username').textContent = profile ? profile.username : user.email.split('@')[0];
-
   await loadCloudData();
 
-  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('boot-screen').classList.add('hidden');
   document.getElementById('app').classList.add('show');
   render();
 }
@@ -374,10 +277,7 @@ async function loadCloudData(){
   likedIds = new Set((likes || []).map(l => l.track_id));
 }
 
-// checa se já tem sessão ativa ao abrir a página
-if(sb){
-  sb.auth.getSession().then(({ data }) => { if(data.session) onLoggedIn(); });
-}
+boot();
 
 // ================= UPLOAD / MATCH DE ARQUIVOS =================
 document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
@@ -555,7 +455,7 @@ function renderView(){
   viewContent.innerHTML = `
     <div class="badge-row">
       <span class="chip">✓ Sem anúncios</span><span class="chip">✓ Sem limite de pulos</span>
-      <span class="chip">✓ 100% gratuito</span><span class="chip">✓ Login salvo na nuvem</span>
+      <span class="chip">✓ 100% gratuito</span><span class="chip">✓ Salvo na nuvem</span>
     </div>
     <h1 class="page-title">Olá de novo</h1>
     <p class="page-sub">${notLoaded > 0 ? `${notLoaded} música(s) da sua biblioteca precisam ser readicionadas nesta sessão.` : 'Sua biblioteca está pronta pra tocar.'}</p>
