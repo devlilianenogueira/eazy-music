@@ -105,6 +105,15 @@
   .queue-item{display:flex;align-items:center;gap:10px;padding:7px 4px;border-radius:6px;cursor:pointer;}
   .queue-item:hover{background:var(--bg-2);}
   .queue-item.current{color:var(--purple);}
+
+  .menu-btn{font-size:16px;font-weight:700;}
+  .track-menu{position:absolute;z-index:60;min-width:220px;max-width:260px;background:#22222f;border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,.55);max-height:320px;overflow-y:auto;}
+  .tm-item{padding:9px 12px;border-radius:6px;font-size:13.5px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tm-item:hover{background:var(--bg-2);}
+  .tm-item.danger{color:#ff8b8b;}
+  .tm-item.tm-back{color:var(--text-faint);font-weight:700;border-bottom:1px solid var(--border);margin-bottom:4px;padding-bottom:10px;}
+  .tm-check{width:14px;flex-shrink:0;color:var(--purple);}
+  .tm-empty{padding:9px 12px;font-size:12.5px;color:var(--text-faint);}
 </style>
 </head>
 <body>
@@ -334,23 +343,126 @@ async function deletePlaylist(id, ev){
   if(currentPlaylistId === id){ currentView='home'; currentPlaylistId=null; }
   render();
 }
-async function addToPlaylist(trackId){
-  if(playlists.length === 0){ alert('Crie uma playlist primeiro.'); return; }
-  const names = playlists.map((p,i) => `${i+1}. ${p.name}`).join('\n');
-  const choice = prompt(`Adicionar a qual playlist?\n${names}\n\nDigite o número:`);
-  const idx = parseInt(choice) - 1;
-  const p = playlists[idx];
-  if(p && !p.trackIds.includes(trackId)){
-    const { error } = await sb.from('playlist_tracks').insert({ playlist_id: p.id, track_id: trackId, position: p.trackIds.length });
-    if(!error){ p.trackIds.push(trackId); render(); }
-  }
-}
 async function removeFromPlaylist(playlistId, trackId){
   await sb.from('playlist_tracks').delete().eq('playlist_id', playlistId).eq('track_id', trackId);
   const p = playlists.find(x => x.id === playlistId);
   if(p) p.trackIds = p.trackIds.filter(id => id !== trackId);
   render();
 }
+
+// ================= MENU DE CONTEXTO (estilo Spotify) =================
+let openMenuTrackId = null;
+let menuMode = 'main';        // 'main' ou 'playlists'
+let menuPlaylistContext = null; // id da playlist atual, se o menu foi aberto de dentro de uma playlist
+let menuAnchorEl = null;
+
+function toggleTrackMenu(trackId, ev, playlistId){
+  ev.stopPropagation();
+  if(openMenuTrackId === trackId){ closeTrackMenu(); return; }
+  openMenuTrackId = trackId;
+  menuMode = 'main';
+  menuPlaylistContext = playlistId || null;
+  menuAnchorEl = ev.currentTarget;
+  renderTrackMenu();
+}
+function closeTrackMenu(){
+  openMenuTrackId = null;
+  const el = document.getElementById('track-menu');
+  if(el) el.remove();
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('track-menu');
+  if(menu && !menu.contains(e.target)) closeTrackMenu();
+});
+
+function renderTrackMenu(){
+  if(!openMenuTrackId || !menuAnchorEl) return;
+  const t = library.find(x => x.id === openMenuTrackId);
+  if(!t){ closeTrackMenu(); return; }
+
+  let el = document.getElementById('track-menu');
+  if(!el){ el = document.createElement('div'); el.id = 'track-menu'; el.className = 'track-menu'; document.body.appendChild(el); }
+  const rect = menuAnchorEl.getBoundingClientRect();
+  el.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  el.style.left = Math.max(8, rect.right - 220 + window.scrollX) + 'px';
+  el.onclick = (e) => e.stopPropagation();
+
+  if(menuMode === 'main'){
+    el.innerHTML = `
+      <div class="tm-item" onclick="menuMode='playlists'; renderTrackMenu();">Adicionar à playlist ▸</div>
+      ${menuPlaylistContext ? `<div class="tm-item" onclick="togglePlaylistTrack('${menuPlaylistContext}','${t.id}'); closeTrackMenu();">Remover desta playlist</div>` : ''}
+      <div class="tm-item" onclick="toggleLike('${t.id}'); closeTrackMenu();">${likedIds.has(t.id) ? 'Remover dos curtidos' : 'Curtir'}</div>
+      <div class="tm-item danger" onclick="confirmDeleteTrack('${t.id}')">Excluir música</div>
+    `;
+  } else {
+    const rows = playlists.map(p => {
+      const has = p.trackIds.includes(t.id);
+      return `<div class="tm-item" onclick="togglePlaylistTrack('${p.id}','${t.id}')"><span class="tm-check">${has?'✓':''}</span>${escapeHtml(p.name)}</div>`;
+    }).join('') || `<div class="tm-empty">Nenhuma playlist ainda</div>`;
+    el.innerHTML = `
+      <div class="tm-item tm-back" onclick="menuMode='main'; renderTrackMenu();">◂ Voltar</div>
+      ${rows}
+      <div class="tm-item" onclick="createPlaylistAndAdd('${t.id}')">＋ Nova playlist</div>
+    `;
+  }
+}
+
+async function togglePlaylistTrack(playlistId, trackId){
+  const p = playlists.find(x => x.id === playlistId);
+  if(!p) return;
+  if(p.trackIds.includes(trackId)){
+    const { error } = await sb.from('playlist_tracks').delete().eq('playlist_id', playlistId).eq('track_id', trackId);
+    if(error){ alert('Não foi possível remover: ' + error.message); return; }
+    p.trackIds = p.trackIds.filter(id => id !== trackId);
+  } else {
+    const { error } = await sb.from('playlist_tracks').insert({ playlist_id: playlistId, track_id: trackId, position: p.trackIds.length });
+    if(error){ alert('Não foi possível adicionar: ' + error.message); return; }
+    p.trackIds.push(trackId);
+  }
+  renderTrackMenu();
+  render();
+}
+
+async function createPlaylistAndAdd(trackId){
+  const name = prompt('Nome da nova playlist:');
+  if(!name || !name.trim()) return;
+  const { data, error } = await sb.from('playlists').insert({ user_id: currentUser.id, name: name.trim() }).select().single();
+  if(error){ alert('Erro ao criar playlist: ' + error.message); return; }
+  playlists.push({ id: data.id, name: data.name, trackIds: [] });
+  await togglePlaylistTrack(data.id, trackId);
+  renderSidebarPlaylists();
+}
+
+async function confirmDeleteTrack(trackId){
+  closeTrackMenu();
+  const t = library.find(x => x.id === trackId);
+  if(!t) return;
+  if(!confirm(`Excluir "${t.title}" da sua biblioteca? Isso remove a música de todas as playlists e curtidas.`)) return;
+  const { error } = await sb.from('tracks').delete().eq('id', trackId);
+  if(error){ alert('Erro ao excluir: ' + error.message); return; }
+
+  const playingId = queuePos >= 0 ? queue[queuePos] : null;
+  const wasPlaying = playingId === trackId;
+
+  library = library.filter(x => x.id !== trackId);
+  playlists.forEach(p => { p.trackIds = p.trackIds.filter(id => id !== trackId); });
+  likedIds.delete(trackId);
+  queue = queue.filter(id => id !== trackId);
+  queuePos = wasPlaying ? -1 : queue.indexOf(playingId);
+
+  if(wasPlaying){
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    document.getElementById('np-title').textContent = 'Nada tocando';
+    document.getElementById('np-artist').textContent = 'Adicione músicas para começar';
+    document.getElementById('np-heart').classList.remove('on');
+    document.getElementById('np-heart').textContent = '♡';
+  }
+  render();
+  renderQueuePanel();
+}
+
 async function toggleLike(trackId){
   if(likedIds.has(trackId)){
     likedIds.delete(trackId);
@@ -412,9 +524,8 @@ function trackTableHtml(trackIds, opts={}){
         </td>
         <td class="row-actions">
           ${missing ? `<button onclick="relinkTrack('${t.id}', event)" title="Localizar arquivo">🔗 Localizar</button>` : ''}
-          <button onclick="event.stopPropagation(); addToPlaylist('${t.id}')" title="Adicionar à playlist">＋</button>
           <button onclick="event.stopPropagation(); toggleLike('${t.id}')" title="Curtir">${likedIds.has(t.id)?'♥':'♡'}</button>
-          ${opts.playlistId ? `<button onclick="event.stopPropagation(); removeFromPlaylist('${opts.playlistId}','${t.id}')" title="Remover">✕</button>` : ''}
+          <button class="menu-btn" onclick="event.stopPropagation(); toggleTrackMenu('${t.id}', event${opts.playlistId ? `, '${opts.playlistId}'` : ''})" title="Mais opções">⋮</button>
         </td>
       </tr>`;
   }).join('');
