@@ -222,15 +222,23 @@
 // ======================================================
 // CONFIGURAÇÃO — cole aqui os dados do SEU projeto Supabase
 // ======================================================
-const SUPABASE_URL = 'https://azljjkbdugrcuoyzfmvw.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6bGpqa2JkdWdyY3VveXpmbXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTY5NTAsImV4cCI6MjA5OTk5Mjk1MH0.odkr0TDNdqXT4D1yNmO1VqGmjEVjj8RE5Binfcj3SI0
-
-
-
-';
+const SUPABASE_URL = https://azljjkbdugrcuoyzfmvw.supabase.co/rest/v1/;
+const SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6bGpqa2JkdWdyY3VveXpmbXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTY5NTAsImV4cCI6MjA5OTk5Mjk1MH0.odkr0TDNdqXT4D1yNmO1VqGmjEVjj8RE5Binfcj3SI0;
 const EMAIL_DOMAIN = '@eazymusic.local'; // usado internamente pra transformar usuário em e-mail
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let sb = null;
+let configErrorMsg = null;
+try{
+  if(!SUPABASE_URL || SUPABASE_URL.includes('COLOQUE_') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('COLOQUE_')){
+    throw new Error('Você ainda não colocou a URL e a chave do seu projeto Supabase no topo do arquivo (procure por SUPABASE_URL e SUPABASE_ANON_KEY).');
+  }
+  if(!window.supabase){
+    throw new Error('A biblioteca do Supabase não carregou. Verifique sua conexão com a internet e recarregue a página.');
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}catch(e){
+  configErrorMsg = e.message;
+}
 
 // ---------- Estado ----------
 let currentUser = null;
@@ -258,56 +266,80 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 function formatTime(s){ if(isNaN(s)) return '0:00'; const m=Math.floor(s/60), sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
 
 // ================= AUTENTICAÇÃO =================
+if(configErrorMsg){
+  document.querySelector('.auth-box').innerHTML = `
+    <div class="auth-logo"><div class="mark">🎵</div>Eazy Music</div>
+    <p class="auth-sub">configuração pendente</p>
+    <div style="background:rgba(255,139,139,.1); border:1px solid rgba(255,139,139,.35); border-radius:8px; padding:14px; color:#ff8b8b; font-size:13px; line-height:1.5;">
+      ${escapeHtml(configErrorMsg)}
+    </div>
+  `;
+}
+
 let authMode = 'login';
-document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    authMode = tab.dataset.tab;
-    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Entrar' : 'Criar conta';
-    document.getElementById('auth-error').textContent = '';
-  };
-});
 
-document.getElementById('auth-submit').onclick = async () => {
-  const username = document.getElementById('auth-username').value.trim().toLowerCase();
-  const password = document.getElementById('auth-password').value;
-  const errEl = document.getElementById('auth-error');
-  errEl.textContent = '';
-  if(!username || !password){ errEl.textContent = 'Preencha usuário e senha.'; return; }
-  if(!/^[a-z0-9_.]{3,20}$/.test(username)){ errEl.textContent = 'Use só letras, números, _ e . (3-20 caracteres).'; return; }
+if(!configErrorMsg){
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      authMode = tab.dataset.tab;
+      document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Entrar' : 'Criar conta';
+      document.getElementById('auth-error').textContent = '';
+    };
+  });
 
-  document.getElementById('auth-loading').style.display = 'block';
-  const email = username + EMAIL_DOMAIN;
+  const submitBtn = document.getElementById('auth-submit');
+  submitBtn.onclick = async () => {
+    const username = document.getElementById('auth-username').value.trim().toLowerCase();
+    const password = document.getElementById('auth-password').value;
+    const errEl = document.getElementById('auth-error');
+    errEl.textContent = '';
+    if(!username || !password){ errEl.textContent = 'Preencha usuário e senha.'; return; }
+    if(!/^[a-z0-9_.]{3,20}$/.test(username)){ errEl.textContent = 'Use só letras, números, _ e . (3-20 caracteres).'; return; }
+    if(password.length < 6){ errEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
 
-  try{
-    if(authMode === 'signup'){
-      const { data, error } = await sb.auth.signUp({ email, password });
-      if(error) throw error;
-      if(data.user){
-        await sb.from('profiles').insert({ id: data.user.id, username });
+    submitBtn.disabled = true;
+    document.getElementById('auth-loading').style.display = 'block';
+    const email = username + EMAIL_DOMAIN;
+
+    try{
+      if(authMode === 'signup'){
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if(error) throw error;
+        if(data.user){
+          const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, username });
+          if(profErr && profErr.code === '23505'){
+            errEl.textContent = 'Esse nome de usuário já está em uso. Escolha outro.';
+            submitBtn.disabled = false;
+            document.getElementById('auth-loading').style.display = 'none';
+            return;
+          }
+        }
+        // se a confirmação de e-mail estiver ativada no Supabase, data.session pode vir nula
+        if(!data.session){
+          errEl.textContent = 'Conta criada. Se não conseguir entrar agora, desative "Confirm email" nas configurações de Auth do Supabase.';
+          submitBtn.disabled = false;
+          document.getElementById('auth-loading').style.display = 'none';
+          return;
+        }
+      } else {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if(error) throw error;
       }
-      // se a confirmação de e-mail estiver ativada no Supabase, data.session pode vir nula
-      if(!data.session){
-        errEl.textContent = 'Conta criada. Desative a confirmação de e-mail nas configurações de Auth do Supabase, ou confirme e faça login.';
-        document.getElementById('auth-loading').style.display = 'none';
-        return;
-      }
-    } else {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if(error) throw error;
+      await onLoggedIn();
+    }catch(e){
+      errEl.textContent = (e.message || '').includes('Invalid login') ? 'Usuário ou senha incorretos.' : (e.message || 'Ocorreu um erro. Tente novamente.');
     }
-    await onLoggedIn();
-  }catch(e){
-    errEl.textContent = e.message.includes('Invalid login') ? 'Usuário ou senha incorretos.' : e.message;
-  }
-  document.getElementById('auth-loading').style.display = 'none';
-};
+    submitBtn.disabled = false;
+    document.getElementById('auth-loading').style.display = 'none';
+  };
 
-document.getElementById('logout-btn').onclick = async () => {
-  await sb.auth.signOut();
-  location.reload();
-};
+  document.getElementById('logout-btn').onclick = async () => {
+    await sb.auth.signOut();
+    location.reload();
+  };
+}
 
 async function onLoggedIn(){
   const { data: { user } } = await sb.auth.getUser();
@@ -336,7 +368,9 @@ async function loadCloudData(){
 }
 
 // checa se já tem sessão ativa ao abrir a página
-sb.auth.getSession().then(({ data }) => { if(data.session) onLoggedIn(); });
+if(sb){
+  sb.auth.getSession().then(({ data }) => { if(data.session) onLoggedIn(); });
+}
 
 // ================= UPLOAD / MATCH DE ARQUIVOS =================
 document.getElementById('upload-btn').onclick = () => document.getElementById('file-input').click();
@@ -515,7 +549,7 @@ function renderView(){
     </div>
     <h1 class="page-title">Olá de novo</h1>
     <p class="page-sub">${notLoaded > 0 ? `${notLoaded} música(s) da sua biblioteca precisam ser readicionadas nesta sessão.` : 'Sua biblioteca está pronta pra tocar.'}</p>
-    <div class="section"><div class="section-head"><h2>Sua biblioteca</h2></div>${trackTableHtml(library.map(t=>t.id)).replace('<table','<div style="max-height:420px;overflow:auto"><table').concat('</div>')}</div>
+    <div class="section"><div class="section-head"><h2>Sua biblioteca</h2></div><div style="max-height:420px;overflow:auto;">${trackTableHtml(library.map(t=>t.id))}</div></div>
   `;
 }
 
